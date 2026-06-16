@@ -61,3 +61,9 @@ export interface ConfigInfo {
   defaultBrowser?: string;
   options?: Partial<ConfigOptions>;
 }
+
+export interface ConfigFile {
+  path: string;
+  content: string;
+  exists: boolean;
+}

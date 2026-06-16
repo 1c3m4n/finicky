@@ -6,9 +6,10 @@
   import About from "./pages/About.svelte";
   import TestUrl from "./pages/TestUrl.svelte";
   import Rules from "./pages/Rules.svelte";
+  import ConfigEditor from "./pages/ConfigEditor.svelte";
   import ToastContainer from "./components/ToastContainer.svelte";
   import ExternalIcon from "./components/icons/External.svelte";
-  import type { LogEntry, UpdateInfo, ConfigInfo, RulesFile } from "./types";
+  import type { LogEntry, UpdateInfo, ConfigInfo, RulesFile, ConfigFile } from "./types";
   import { testUrlResult } from "./lib/testUrlStore";
   import { toast } from "./lib/toast";
 
@@ -30,6 +31,7 @@
   let messageBuffer: LogEntry[] = [];
   let updateInfo: UpdateInfo | null = null;
   let rulesFile: RulesFile = { defaultBrowser: "", rules: [] };
+  let configFile: ConfigFile = { path: "", content: "", exists: false };
   let installedBrowsers: string[] = [];
   let profilesByBrowser: Record<string, string[]> = {};
 
@@ -64,6 +66,17 @@
         break;
       case "rules":
         rulesFile = parsedMsg.message;
+        break;
+      case "configFile":
+        configFile = parsedMsg.message;
+        break;
+      case "saveConfigFileResult":
+        configFile = parsedMsg.message;
+        toast.show("Config saved", "success", `Saved ${parsedMsg.message?.path ?? "configuration file"}`);
+        break;
+      case "configFileError":
+      case "saveConfigFileError":
+        toast.show("Config file error", "error", parsedMsg.message?.error ?? "Unknown error");
         break;
       case "installedBrowsers":
         installedBrowsers = parsedMsg.message;
@@ -146,6 +159,10 @@
 
           <Route path="/rules">
             <Rules {rulesFile} {installedBrowsers} {profilesByBrowser} isJSConfig={config.isJSConfig ?? false} />
+          </Route>
+
+          <Route path="/config">
+            <ConfigEditor {configFile} />
           </Route>
         </div>
       </div>

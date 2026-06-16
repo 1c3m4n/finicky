@@ -20,6 +20,11 @@
       component: RulesIcon,
     },
     {
+      path: "/config",
+      label: "Edit Config",
+      component: PreferencesIcon,
+    },
+    {
       path: "/test",
       label: "Test",
       component: TestIcon,

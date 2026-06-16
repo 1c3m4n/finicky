@@ -25,12 +25,20 @@ import (
 	"unsafe"
 )
 
+type ConfigFileResponse struct {
+	Path    string `json:"path"`
+	Content string `json:"content"`
+	Exists  bool   `json:"exists"`
+}
+
 var (
-	messageQueue     []string
-	queueMutex       sync.Mutex
-	windowReady      bool
-	TestUrlHandler   func(string)
-	SaveRulesHandler func(rules.RulesFile)
+	messageQueue          []string
+	queueMutex            sync.Mutex
+	windowReady           bool
+	TestUrlHandler        func(string)
+	SaveRulesHandler      func(rules.RulesFile)
+	LoadConfigFileHandler func() (ConfigFileResponse, error)
+	SaveConfigFileHandler func(string) (ConfigFileResponse, error)
 )
 
 //export WindowIsReady
@@ -168,6 +176,10 @@ func HandleWebViewMessage(messagePtr *C.char) {
 		handleGetRules()
 	case "saveRules":
 		handleSaveRules(msg)
+	case "getConfigFile":
+		handleGetConfigFile()
+	case "saveConfigFile":
+		handleSaveConfigFile(msg)
 	case "getInstalledBrowsers":
 		handleGetInstalledBrowsers()
 	case "getBrowserProfiles":
@@ -258,6 +270,48 @@ func handleSaveRules(msg map[string]interface{}) {
 	if SaveRulesHandler != nil {
 		SaveRulesHandler(rf)
 	}
+}
+
+func handleGetConfigFile() {
+	if LoadConfigFileHandler == nil {
+		slog.Error("LoadConfigFileHandler not set")
+		SendMessageToWebView("configFileError", map[string]interface{}{"error": "Config file handler not initialized"})
+		return
+	}
+
+	response, err := LoadConfigFileHandler()
+	if err != nil {
+		slog.Error("Failed to load config file", "error", err)
+		SendMessageToWebView("configFileError", map[string]interface{}{"error": err.Error()})
+		return
+	}
+
+	SendMessageToWebView("configFile", response)
+}
+
+func handleSaveConfigFile(msg map[string]interface{}) {
+	if SaveConfigFileHandler == nil {
+		slog.Error("SaveConfigFileHandler not set")
+		SendMessageToWebView("saveConfigFileError", map[string]interface{}{"error": "Config file handler not initialized"})
+		return
+	}
+
+	content, ok := msg["content"].(string)
+	if !ok {
+		slog.Error("saveConfigFile message missing content field")
+		SendMessageToWebView("saveConfigFileError", map[string]interface{}{"error": "Missing config content"})
+		return
+	}
+
+	response, err := SaveConfigFileHandler(content)
+	if err != nil {
+		slog.Error("Failed to save config file", "error", err)
+		SendMessageToWebView("saveConfigFileError", map[string]interface{}{"error": err.Error()})
+		return
+	}
+
+	SendMessageToWebView("saveConfigFileResult", response)
+	SendMessageToWebView("configFile", response)
 }
 
 func handleGetInstalledBrowsers() {

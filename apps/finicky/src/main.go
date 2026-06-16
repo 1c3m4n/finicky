@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -121,6 +122,46 @@ func main() {
 
 	if err != nil {
 		handleFatalError(fmt.Sprintf("Failed to setup config file watcher: %v", err))
+	}
+
+	window.LoadConfigFileHandler = func() (window.ConfigFileResponse, error) {
+		path, exists, err := resolveEditableConfigPath(cfw)
+		if err != nil {
+			return window.ConfigFileResponse{}, err
+		}
+
+		content := defaultConfigTemplate()
+		if exists {
+			configBytes, readErr := os.ReadFile(path)
+			if readErr != nil {
+				return window.ConfigFileResponse{}, readErr
+			}
+			content = string(configBytes)
+		}
+
+		return window.ConfigFileResponse{
+			Path:    util.ShortenPath(path),
+			Content: content,
+			Exists:  exists,
+		}, nil
+	}
+
+	window.SaveConfigFileHandler = func(content string) (window.ConfigFileResponse, error) {
+		path, _, err := resolveEditableConfigPath(cfw)
+		if err != nil {
+			return window.ConfigFileResponse{}, err
+		}
+		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+			return window.ConfigFileResponse{}, err
+		}
+		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+			return window.ConfigFileResponse{}, err
+		}
+		return window.ConfigFileResponse{
+			Path:    util.ShortenPath(path),
+			Content: content,
+			Exists:  true,
+		}, nil
 	}
 
 	vm, err = setupVM(cfw, namespace)
@@ -403,6 +444,31 @@ func tearDown() {
 	checkForUpdates()
 	slog.Info("Exiting...")
 	os.Exit(0)
+}
+
+func resolveEditableConfigPath(cfw *config.ConfigFileWatcher) (string, bool, error) {
+	path, err := cfw.GetConfigPath(false)
+	if err == nil && path != "" {
+		return path, true, nil
+	}
+
+	paths := cfw.GetConfigPaths()
+	if len(paths) == 0 {
+		if err != nil {
+			return "", false, err
+		}
+		return "", false, fmt.Errorf("no config file locations are available")
+	}
+
+	return paths[0], false, nil
+}
+
+func defaultConfigTemplate() string {
+	return `export default {
+  defaultBrowser: "Safari",
+  handlers: [],
+};
+`
 }
 
 func setupVM(cfw *config.ConfigFileWatcher, namespace string) (*config.VM, error) {
